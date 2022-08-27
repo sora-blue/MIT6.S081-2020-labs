@@ -1,0 +1,4 @@
+1 hour for $sleep
+3 hours for $primes
+0.5 hour for $find
+2 hours for $args
