@@ -80,3 +80,22 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// Calculate available physical memory size and return it.
+uint64
+kcnt(void)
+{
+  uint64 size = 0;
+  struct run *r;
+
+  acquire(&kmem.lock);
+  r = kmem.freelist;
+  while(r)
+  {
+    size += PGSIZE;
+    r = r->next;
+  }
+  release(&kmem.lock);
+
+  return size;
+}
