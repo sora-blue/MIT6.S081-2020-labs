@@ -1,0 +1,20 @@
+Explain the output of vmprint in terms of Fig 3-4 from the text. 
+What does page 0 contain? What is in page 2? 
+When running in user mode, could the process read/write the memory mapped by page 1? 
+
+A: 
+// kernel and user uses mem from 0x80000000 to 0x88000000(PHYSTOP)
+page table 0x0000000087f6e000
+..0: pte 0x0000000021fda801 pa 0x0000000087f6a000
+.. ..0: pte 0x0000000021fda401 pa 0x0000000087f69000
+.. .. ..0: pte 0x0000000021fdac1f pa 0x0000000087f6b000     // RWXU trampoline
+.. .. ..1: pte 0x0000000021fda00f pa 0x0000000087f68000     // RWX- trapframe 
+.. .. ..2: pte 0x0000000021fd9c1f pa 0x0000000087f67000     // RWXU  stack
+..255: pte 0x0000000021fdb401 pa 0x0000000087f6d000
+.. ..511: pte 0x0000000021fdb001 pa 0x0000000087f6c000
+.. .. ..510: pte 0x0000000021fdd807 pa 0x0000000087f76000   // RW-- kernel data?
+.. .. ..511: pte 0x0000000020001c0b pa 0x0000000080007000   // R-X- kernel text
+
+So page 0 contains trampoline that is mapped to both user & kernel space.
+In page 2 it is a page that would be user's stack.
+And user process has no access to page 1 as U flag is 0.

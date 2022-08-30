@@ -440,3 +440,37 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+// Recursively print page-table pages.
+void
+vmprint(pagetable_t pagetable)
+{
+  const int MAX_PTE_ENTRY = 512;
+  static int le = 1;
+  int thisle = le;
+  if(thisle == 1)
+  {
+    printf("page table %p\n", pagetable);
+  }
+  for(int i = 0 ; i < MAX_PTE_ENTRY ; i++)
+  {
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V)
+    {
+      uint64 child = PTE2PA(pte);
+      for(int j = 0; j < thisle - 1; j++)
+      {
+        printf(".. ");
+      }
+      printf("..%d: pte %p pa %p\n", i, pte, child);
+      // not leaf node
+      if((pte & (PTE_R | PTE_W | PTE_X)) == 0)
+      {
+        le = thisle + 1;
+        vmprint((pagetable_t)child);
+        le = thisle;
+      }
+    }
+  }
+}
