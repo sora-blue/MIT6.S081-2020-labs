@@ -30,16 +30,6 @@ procinit(void)
   initlock(&pid_lock, "nextpid");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
-
-      // Allocate a page for the process's kernel stack.
-      // Map it high in memory, followed by an invalid
-      // guard page.
-      char *pa = kalloc();
-      if(pa == 0)
-        panic("kalloc");
-      uint64 va = KSTACK((int) (p - proc));
-      kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-      p->kstack = va;
   }
   kvminithart();
 }
@@ -121,6 +111,30 @@ found:
     return 0;
   }
 
+  // A copy of kernel page table;
+  p->kernel_pagetable = proc_kvminit();
+  if(p->kernel_pagetable == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
+  // A mapping for the process's kernel stack.
+  // Allocate a page for the process's kernel stack.
+  // Map it high in memory, followed by an invalid
+  // guard page.
+  char *pa = kalloc();
+  if(pa == 0)
+  {
+    freeproc(p);
+    release(&p->lock);
+  }
+  uint64 va = KSTACK((int) (p - proc));
+  p->kstack = va;
+  // worry about this line, which is not updated later in $freeproc()
+  kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  mappages(p->kernel_pagetable, va, PGSIZE, (uint64)pa, PTE_R | PTE_W);
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -142,6 +156,14 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+  if(p->kstack)
+     uvmunmap(p->kernel_pagetable, p->kstack, 1, 1);
+  p->kstack = 0;
+  // free $kernel_pagetable of process 
+  // without freeing leaf physical pages.
+  if(p->kernel_pagetable)
+    uvmfree(p->kernel_pagetable, 0);
+  p->kernel_pagetable = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -468,6 +490,9 @@ scheduler(void)
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+        // Switch to kernel_pagetable of chosen process.
+        w_satp(MAKE_SATP(p->kernel_pagetable));
+        sfence_vma();
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
@@ -485,6 +510,9 @@ scheduler(void)
     }
 #if !defined (LAB_FS)
     if(found == 0) {
+      // When no process is running, use $kernel_pagetable.
+      // is it a waste to $sfence_vma() every time cpu is idle?
+      kvminithart();
       intr_on();
       asm volatile("wfi");
     }
