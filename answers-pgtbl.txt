@@ -19,3 +19,19 @@ page table 0x0000000087f6e000
 Page 0 contains user text.
 Page 2 contains user stack.
 When running in user mode, the process could not r/w the memory mapped by page 1.
+
+Q:
+Explain why the third test srcva + len < srcva is necessary in copyin_new(): 
+give values for srcva and len for which the first two test fail 
+(i.e., they will not cause to return -1)
+but for which the third one is true 
+(resulting in returning -1). 
+
+A:
+Testing srcva + len < srcva is to avoid overflow.
+Say if 
+srcva == 0xFFFF FFFF FFFF FF00 &&
+p->sz == 0x2FF &&
+len == 0x3FF,
+plus they are all uint64,
+then the first two will pass, while the third one will fail.

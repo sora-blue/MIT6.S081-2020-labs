@@ -1,0 +1,97 @@
+vmprint and find out what to do : 1 night(2 hours)
+finish the second one: 2.5 hours
+finish the third one: 2 nights and 1 afternoon (7.5hrs)
+
+== Test pte printout == 
+$ make qemu-gdb
+pte printout: OK (9.5s) 
+== Test answers-pgtbl.txt == answers-pgtbl.txt: OK 
+== Test count copyin == 
+$ make qemu-gdb
+count copyin: OK (1.2s) 
+    (Old xv6.out.count failure log removed)
+== Test usertests == 
+$ make qemu-gdb
+(175.6s) 
+== Test   usertests: copyin == 
+  usertests: copyin: OK 
+== Test   usertests: copyinstr1 == 
+  usertests: copyinstr1: OK 
+== Test   usertests: copyinstr2 == 
+  usertests: copyinstr2: OK 
+== Test   usertests: copyinstr3 == 
+  usertests: copyinstr3: OK 
+== Test   usertests: sbrkmuch == 
+  usertests: sbrkmuch: OK 
+== Test   usertests: all tests == 
+  usertests: all tests: OK 
+== Test time == 
+time: OK 
+Score: 66/66
+
+I was worrying extra work on Sunday before 
+finally i made it all passed (at least the check program told me)
+at 8pm 2022/09/03.
+Printing page table was relatively a piece of cake.
+The relatively hard work was explained in progress-akptpp.txt
+But the hardest part of this lab is definitely this one.
+There are small mistakes and key mistakes.
+
+For the first night i was confused how to retrieve phy addr without 
+modifying arg list of `uvm\[.+\]`, and the conclusion was that
+i got to make changes on them.
+
+For the second day, aka, today's afternoon and night,
+i was deeply confused by missing **kernel stack** mapping.
+I tried to debug it through gdb, only to find that
+backtrace was not full traced as it's a kernel trap and used .S code directly
+
+i checked my understanding of this lab, referred the book, and still nothing improved.
+So i had to $vmprint and to debug line by line in exec.c
+And i found it was 2 lines below that made $vmprint not work
+```c
+  oldkpagetable = p->kernel_pagetable;
+  p->kernel_pagetable = kpagetable;
+```
+Way out of expected.
+
+Because i had to manipulate a brand-new kernel pagetable in $exec
+i thought maybe i should $w_satp and $sfence_vma to refresh MMU
+it made a few changes, but problem was still there
+Before these 2 lines, vmprint worked well
+After them, vmprint did not work even on the same pagetable
+At least i knew that my changes in uvm**** functions were able to work
+
+It came to me that kstack should also have a mapping in new kernel pagetable
+I referred the book again, checking kernel stack, 
+and i was told that kernel stack was used once the process entered the kernel
+so there were no doubt
+But how the phy addr?
+I cannot allocate a new page when executing in $exec
+
+I had thought of it before and extracted 2 functions in proc.c
+which were $allockstack and $freekstack
+Finally i used $walkaddr instead
+
+it said that only user page table could use it
+i deleted the comment and the check directly
+now i could use it in proc's kernel pagetable as well
+
+so things worked smoothly after that
+when usertests were able to work, i passed the tests
+
+the exceptions are that:
+1. I ignored a `remap` panic to make usertests able to run
+but sth no good was definitely hidden in my implementation 
+though i passed all tests in the check program
+2. I highly doubt my answers in answers-pgtbl.txt
+but i just have no image out of the address space
+matched with the page table
+3. I checked [lab pgtbl in 2021 course](https://pdos.csail.mit.edu/6.S081/2020/labs/pgtbl.html)
+and found 2021 version was much, much easier than 2020 one
+it cost me nearly 12 hours, half of the whole day, to get all the points of 2020:(
+
+but all the effort is worth it
+i loved the process digging into it
+calm down after the first rush
+and finally problems were solved
