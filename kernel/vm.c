@@ -151,13 +151,20 @@ walkaddr(pagetable_t pagetable, uint64 va)
 }
 
 // add a mapping to the kernel page table.
-// only used when booting.
 // does not flush TLB or enable paging.
 void
 kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
 {
   if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap");
+}
+
+// remove a mapping to the kernel page table.
+// does not flush TLB or enable paging.
+void
+kvmunmap(uint64 va, uint64 sz, int do_free)
+{
+  uvmunmap(kernel_pagetable, va, sz, do_free);
 }
 
 // translate a kernel virtual address to
@@ -195,8 +202,8 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    // if(*pte & PTE_V)
-    //   panic("remap");
+    if(*pte & PTE_V)
+       panic("remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;

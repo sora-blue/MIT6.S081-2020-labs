@@ -157,7 +157,10 @@ freeproc(struct proc *p)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
   if(p->kstack)
-     uvmunmap(p->kernel_pagetable, p->kstack, 1, 1);
+  {
+    kvmunmap(p->kstack, 1, 0);
+    uvmunmap(p->kernel_pagetable, p->kstack, 1, 1);
+  }
   p->kstack = 0;
   // free $kernel_pagetable of process 
   // without freeing leaf physical pages.
