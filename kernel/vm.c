@@ -38,7 +38,7 @@ proc_kvminit(struct proc* p)
   mappages(pt, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W);
 
   // CLINT
-  mappages(pt, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
+  // mappages(pt, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
 
   // PLIC
   mappages(pt, PLIC, 0x400000, PLIC, PTE_R | PTE_W);
@@ -75,7 +75,7 @@ kvminit()
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
   // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  // kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -204,8 +204,9 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
-       ;// panic("remap");
+    if(*pte & PTE_V){
+       panic("remap");
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -268,7 +269,7 @@ uvminit(pagetable_t pagetable, pagetable_t kpagetable, uchar *src, uint sz)
   mem = kalloc();
   memset(mem, 0, PGSIZE);
   mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
-  mappages(kpagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X);
+  mappages(kpagetable, 0, PGSIZE, (uint64)mem, PTE_R);
   memmove(mem, src, sz);
 }
 
@@ -293,11 +294,12 @@ uvmalloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 new
     if(mem == 0){
       goto uvmalloc_bad;
     }
+    // printf("Trying to allocate %p\n", a);
     memset(mem, 0, PGSIZE);
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
       goto uvmalloc_bad;
     }
-    if(mappages(kpagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R) != 0){
+    if(mappages(kpagetable, a, PGSIZE, (uint64)mem, PTE_R) != 0){
       goto uvmalloc_bad;
     }
   }
@@ -387,7 +389,7 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t newk, uint64 sz)
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       goto err;
     }
-    if(mappages(newk, i, PGSIZE, (uint64)mem, flags & (~(PTE_U))) != 0){
+    if(mappages(newk, i, PGSIZE, (uint64)mem, flags & (~(PTE_U | PTE_X | PTE_W))) != 0){
       goto err;
     }
   }

@@ -1,0 +1,36 @@
+0x0000000080000658
+0x0000000080001250
+0x0000000080001716
+0x0000000080002078
+0x0000000080002f6c
+0x0000000080002e70
+0x0000000080002b5a
+
+cat error.txt | addr2line -e kernel/kernel
+
+After Q&A class, i turned back and fixed this bug that usertests failed to
+figure out for me.
+Previously i thought sth must be wrong with my unmapping functions and yadayada
+But when i introduce backtrace function and print out every va ever allocated
+it turned out that the only remapped addr was CLINT
+
+Class in 2020 mapped it in proc kernel table
+but now it was removed
+See github: https://github.com/mit-pdos/xv6-riscv-book/blob/xv6-riscv/fig/xv6_layout.svg
+
+I removed the mapping for CLINT in proc kernel table
+and everything was just fine
+
+The answer i could come up with is that
+when xv6 boots, CLINT was all set up in timerinit() in start.c
+So kernel has no worry about the CLINT addr was mapped to user space
+Or because we use kernel pagetable instead of user kernel pagetable here
+when dealing with time interrupt, things just go smoothly
+
+Perhaps the first answer is the closest to truth.
+kvminithart() does not affect.
+See 5.4 in book-riscv-rev2.pdf
+It says that code handling timer interrupt is under machine mode, not supervisor mode
+so there's no paging, and we don't need a mapping in va.
+
+2022/09/10 Zhou
