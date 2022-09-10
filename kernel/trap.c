@@ -78,7 +78,21 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
+  {
+    // count ticks if user program ever called
+    // sigalarm without passing arguments equal to 0.
+    if(p->alarm_handler != -1 && p->alarm_interval > 0)
+    {
+      p->alarm_passed_ticks += 1;
+      if(p->alarm_passed_ticks >= p->alarm_interval)
+      {
+        p->alarm_passed_ticks = 0;
+        // ! user pc overwritten
+        p->trapframe->epc = p->alarm_handler;
+      }
+    }
     yield();
+  }
 
   usertrapret();
 }

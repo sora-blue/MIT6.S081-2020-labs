@@ -121,6 +121,11 @@ found:
     return 0;
   }
 
+  // initialize alarm fields
+  p->alarm_passed_ticks = 0;
+  p->alarm_handler = -1;
+  p->alarm_interval = 0;
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
