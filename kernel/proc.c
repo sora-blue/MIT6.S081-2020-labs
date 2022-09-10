@@ -125,6 +125,7 @@ found:
   p->alarm_passed_ticks = 0;
   p->alarm_handler = -1;
   p->alarm_interval = 0;
+  p->alarm_not_returned = 0;
 
   // Set up new context to start executing at forkret,
   // which returns to user space.

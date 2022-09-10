@@ -139,7 +139,7 @@ backtrace(void)
 {
   printf("backtrace:\n");
   uint64 fp = r_fp(), fp2 = *(uint64 *)(fp - 16);
-  while(PGROUNDDOWN(fp2) > 8192)
+  while(PGROUNDDOWN(fp2) > PLIC)
   {
     printf("%p\n", *(uint64 *)(fp - 8));
     fp = fp2;

@@ -81,14 +81,16 @@ usertrap(void)
   {
     // count ticks if user program ever called
     // sigalarm without passing arguments equal to 0.
-    if(p->alarm_handler != -1 && p->alarm_interval > 0)
+    if(p->alarm_handler != -1 && p->alarm_interval > 0 && p->alarm_not_returned == 0)
     {
       p->alarm_passed_ticks += 1;
       if(p->alarm_passed_ticks >= p->alarm_interval)
       {
         p->alarm_passed_ticks = 0;
+        p->alarm_saved = *p->trapframe;
         // ! user pc overwritten
         p->trapframe->epc = p->alarm_handler;
+        p->alarm_not_returned = 1;
       }
     }
     yield();

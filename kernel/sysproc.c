@@ -111,6 +111,9 @@ sys_sigalarm(void)
   // do nothing for now
   struct proc *p = myproc();
   p->alarm_passed_ticks = 0;
+  if((handler | ticks) == 0){
+    handler = -1;
+  }
   p->alarm_handler = handler;
   p->alarm_interval = ticks;
   return 0;
@@ -119,6 +122,9 @@ sys_sigalarm(void)
 uint64
 sys_sigreturn(void)
 {
+  struct proc *p = myproc();
+  *p->trapframe = p->alarm_saved;
+  p->alarm_not_returned = 0;
   // do nothing for now
   return 0;
 }
