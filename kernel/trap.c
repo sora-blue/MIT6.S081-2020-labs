@@ -65,6 +65,11 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if((r_scause() & 13) == 13) {
+    uint64 va;
+    va = r_stval();
+    if(lazyalloc(va, p) != 0)
+      p->killed = 1;
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

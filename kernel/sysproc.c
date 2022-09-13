@@ -41,14 +41,20 @@ sys_wait(void)
 uint64
 sys_sbrk(void)
 {
-  int addr;
+  uint64 addr;
   int n;
+  struct proc *p;
+  p = myproc();
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+  addr = p->sz;
+  //printf("n=%d, new_sz=%d \n", n, n+addr);
+  p->sz = addr + n;
+  if(n < 0){
+    uint64 t = PGROUNDUP(addr + n);
+    uvmunmap(p->pagetable, t, (PGROUNDUP(addr) - t) / PGSIZE, 1);
+  }
   return addr;
 }
 

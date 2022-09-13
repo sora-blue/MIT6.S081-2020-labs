@@ -1,0 +1,163 @@
+make[1]: Leaving directory '/s081'
+== Test running lazytests == 
+$ make qemu-gdb
+(16.7s) 
+== Test   lazy: map == 
+  lazy: map: OK 
+== Test   lazy: unmap == 
+  lazy: unmap: OK 
+== Test usertests == 
+$ make qemu-gdb
+(119.1s) 
+== Test   usertests: pgbug == 
+  usertests: pgbug: OK 
+== Test   usertests: sbrkbugs == 
+  usertests: sbrkbugs: OK 
+== Test   usertests: argptest == 
+  usertests: argptest: OK 
+== Test   usertests: sbrkmuch == 
+  usertests: sbrkmuch: OK 
+== Test   usertests: sbrkfail == 
+  usertests: sbrkfail: OK 
+== Test   usertests: sbrkarg == 
+  usertests: sbrkarg: OK 
+== Test   usertests: stacktest == 
+  usertests: stacktest: OK 
+== Test   usertests: execout == 
+  usertests: execout: OK 
+== Test   usertests: copyin == 
+  usertests: copyin: OK 
+== Test   usertests: copyout == 
+  usertests: copyout: OK 
+== Test   usertests: copyinstr1 == 
+  usertests: copyinstr1: OK 
+== Test   usertests: copyinstr2 == 
+  usertests: copyinstr2: OK 
+== Test   usertests: copyinstr3 == 
+  usertests: copyinstr3: OK 
+== Test   usertests: rwsbrk == 
+  usertests: rwsbrk: OK 
+== Test   usertests: truncate1 == 
+  usertests: truncate1: OK 
+== Test   usertests: truncate2 == 
+  usertests: truncate2: OK 
+== Test   usertests: truncate3 == 
+  usertests: truncate3: OK 
+== Test   usertests: reparent2 == 
+  usertests: reparent2: OK 
+== Test   usertests: badarg == 
+  usertests: badarg: OK 
+== Test   usertests: reparent == 
+  usertests: reparent: OK 
+== Test   usertests: twochildren == 
+  usertests: twochildren: OK 
+== Test   usertests: forkfork == 
+  usertests: forkfork: OK 
+== Test   usertests: forkforkfork == 
+  usertests: forkforkfork: OK 
+== Test   usertests: createdelete == 
+  usertests: createdelete: OK 
+== Test   usertests: linkunlink == 
+  usertests: linkunlink: OK 
+== Test   usertests: linktest == 
+  usertests: linktest: OK 
+== Test   usertests: unlinkread == 
+  usertests: unlinkread: OK 
+== Test   usertests: concreate == 
+  usertests: concreate: OK 
+== Test   usertests: subdir == 
+  usertests: subdir: OK 
+== Test   usertests: fourfiles == 
+  usertests: fourfiles: OK 
+== Test   usertests: sharedfd == 
+  usertests: sharedfd: OK 
+== Test   usertests: exectest == 
+  usertests: exectest: OK 
+== Test   usertests: bigargtest == 
+  usertests: bigargtest: OK 
+== Test   usertests: bigwrite == 
+  usertests: bigwrite: OK 
+== Test   usertests: bsstest == 
+  usertests: bsstest: OK 
+== Test   usertests: sbrkbasic == 
+  usertests: sbrkbasic: OK 
+== Test   usertests: kernmem == 
+  usertests: kernmem: OK 
+== Test   usertests: validatetest == 
+  usertests: validatetest: OK 
+== Test   usertests: opentest == 
+  usertests: opentest: OK 
+== Test   usertests: writetest == 
+  usertests: writetest: OK 
+== Test   usertests: writebig == 
+  usertests: writebig: OK 
+== Test   usertests: createtest == 
+  usertests: createtest: OK 
+== Test   usertests: openiput == 
+  usertests: openiput: OK 
+== Test   usertests: exitiput == 
+  usertests: exitiput: OK 
+== Test   usertests: iput == 
+  usertests: iput: OK 
+== Test   usertests: mem == 
+  usertests: mem: OK 
+== Test   usertests: pipe1 == 
+  usertests: pipe1: OK 
+== Test   usertests: preempt == 
+  usertests: preempt: OK 
+== Test   usertests: exitwait == 
+  usertests: exitwait: OK 
+== Test   usertests: rmdot == 
+  usertests: rmdot: OK 
+== Test   usertests: fourteen == 
+  usertests: fourteen: OK 
+== Test   usertests: bigfile == 
+  usertests: bigfile: OK 
+== Test   usertests: dirfile == 
+  usertests: dirfile: OK 
+== Test   usertests: iref == 
+  usertests: iref: OK 
+== Test   usertests: forktest == 
+  usertests: forktest: OK 
+== Test time == 
+time: OK 
+Score: 119/119
+
+OK so... i got it through.
+I thought i could finish it within 1 hour but...
+Aha, it cost me one more night.
+
+The most tricky part was that,
+when i saw "Handle negative sbrk() arguments"
+i thought growproc(n) could do the job.
+And boom... a remap panic!
+In previous labs I was able to 
+just remove this line and ignore it for the time being,
+but this time i failed, and spent last 2 hours
+jumping here and there with the fancy 'remap' panic.
+
+I went back, lying on my bed, trying to figure out the cause.
+Insight came in 0:23, when I was thinking the pages & PTEs copied by subprocesses.
+By previous debugging i knew that the pages were not properly released by growproc()
+It seemed that xv6 designers just made that function to overflow
+to prevent someone from being lazy
+And if i did not release these PTEs, it would always be valid.
+
+Some pages were allocated to the parent process.
+Then the forked processes copied the PTEs, without uvmunmap() them.
+So when they visited these addr, MMU just told them it was valid.
+There were no page fault. 
+And when process finished and returned back, these pages copied from
+parent process were not included in p->sz, thus not released by uvmunmap()
+and caught by freewalk().
+
+When i finally realised it, things became much easier for me.
+Everything i needed to do is to make up the ignored work and do some debugging.
+And usertests and lazytests told me i got full points.
+
+But there were some problems. It seems output of console was mapped somewhere else
+so there were no more console output after the end of usertests, only $.
+Maybe i would fix it later.
+
+2022/09/13
+Zhou

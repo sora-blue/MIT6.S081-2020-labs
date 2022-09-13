@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -181,9 +183,9 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -315,9 +317,9 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -439,4 +441,57 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+// Recursively print page-table pages.
+void
+vmprint(pagetable_t pagetable)
+{
+  const int MAX_PTE_ENTRY = 512;
+  static int le = 1;
+  int thisle = le;
+  if(thisle == 1)
+  {
+    printf("page table %p\n", pagetable);
+  }
+  for(int i = 0 ; i < MAX_PTE_ENTRY ; i++)
+  {
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V)
+    {
+      uint64 child = PTE2PA(pte);
+      for(int j = 0; j < thisle - 1; j++)
+      {
+        printf(".. ");
+      }
+      printf("..%d: pte %p pa %p\n", i, pte, child);
+      // not leaf node
+      if((pte & (PTE_R | PTE_W | PTE_X)) == 0)
+      {
+        le = thisle + 1;
+        vmprint((pagetable_t)child);
+        le = thisle;
+      }
+    }
+  }
+}
+
+int 
+lazyalloc(uint64 va, struct proc *p)
+{
+  void *mem;
+  pte_t *pte;
+  if(va > p->sz || va < p->stack)
+    return -1;
+  pte = walk(p->pagetable, va, 0);
+  if(pte && (*pte & PTE_V))
+    return -1;
+  va = PGROUNDDOWN(va);
+  mem = kalloc();
+  if(mem == 0)
+    return -1;
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_R|PTE_W|PTE_X|PTE_U) != 0){
+    kfree(mem);
+    return -1;
+  }
+  return 0;
 }
