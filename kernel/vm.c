@@ -480,7 +480,7 @@ lazyalloc(uint64 va, struct proc *p)
 {
   void *mem;
   pte_t *pte;
-  if(va > p->sz || va < p->stack)
+  if(va > p->sz)
     return -1;
   pte = walk(p->pagetable, va, 0);
   if(pte && (*pte & PTE_V))
