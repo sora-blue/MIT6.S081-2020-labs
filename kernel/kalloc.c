@@ -9,10 +9,13 @@
 #include "riscv.h"
 #include "defs.h"
 
+#define PA2INDEX(pa) ((PGROUNDDOWN(pa) - 0x80000000l) / 4096)
+
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
+int refc[0x8000];
 
 struct run {
   struct run *next;
@@ -27,6 +30,8 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  for(int i = 0 ; i < 0x8000 ; i++)
+    refc[i] = 1;
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -37,6 +42,24 @@ freerange(void *pa_start, void *pa_end)
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
+}
+
+int
+krefmod(void *pa, int offset)
+{
+  uint64 ind;
+  int c;
+
+  acquire(&kmem.lock);
+  ind = PA2INDEX((uint64)pa);
+  if(ind < 0 || ind >= 0x8000){
+    panic("wrong index");
+  }
+  refc[ind] += offset;
+  c = refc[ind];
+  release(&kmem.lock);
+
+  return c;
 }
 
 // Free the page of physical memory pointed at by v,
@@ -50,6 +73,9 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+  
+  if(krefmod(pa, -1) != 0)
+    return;
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -76,7 +102,9 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r){
+    krefmod((void*)r, 1);
     memset((char*)r, 5, PGSIZE); // fill with junk
+  }
   return (void*)r;
 }
