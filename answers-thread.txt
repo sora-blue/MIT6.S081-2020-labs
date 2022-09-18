@@ -1,0 +1,13 @@
+Q:
+Why are there missing keys with 2 threads,
+but not with 1 thread? Identify a sequence of events with 2 threads 
+that can lead to a key being missing.
+Submit your sequence with a short explanation in answers-thread.txt 
+
+A:
+Say thread 0 puts a value into the hash table, while
+thread 1 also puts one into the hash table. And their
+buckets happen to the same bucket. So there's a race
+during the execution of insert(). They may read the argument
+struct entry **p that is the same value, and insert an entry,
+when the earlier entry gets lost.
