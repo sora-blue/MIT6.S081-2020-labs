@@ -30,7 +30,33 @@ barrier()
   // Block until all threads have called barrier() and
   // then increment bstate.round.
   //
-  
+  // #define BAR_DEBUG 1
+  pthread_mutex_lock(&bstate.barrier_mutex);
+  #ifdef BAR_DEBUG
+  printf("lock - %d\n", bstate.nthread);
+  #endif
+  if(bstate.nthread == nthread - 1){
+    bstate.nthread = 0;
+    bstate.round++;
+    pthread_cond_broadcast(&bstate.barrier_cond);
+  #ifdef BAR_DEBUG
+    printf("broadcast - %d\n", bstate.nthread);
+  #endif
+    pthread_mutex_unlock(&bstate.barrier_mutex);
+  #ifdef BAR_DEBUG
+    printf("broadcast unlock - %d\n", bstate.nthread);
+  #endif
+  }else{
+    bstate.nthread++;
+  #ifdef BAR_DEBUG
+    printf("cond wait - %d\n", bstate.nthread);
+  #endif
+    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex);
+  #ifdef BAR_DEBUG
+    printf("cond unlock - %d\n", bstate.nthread);
+  #endif
+    pthread_mutex_unlock(&bstate.barrier_mutex);
+  }
 }
 
 static void *

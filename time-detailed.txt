@@ -1,4 +1,124 @@
-uthread: 2 hrs 10 min
+1. uthread: 2 hr 10 min
 God it was a disaster. i debugged here and there, unhappy to find all_thread[0] was totally a mess
 after being scheduled. Finally it turned out that i didn't expect stack is growing to lower addr
 as well here! So i have to make $sp equals to (t->stack + STACK_SIZE)! 
+
+2. using threads 20 min
+
+3. barrier 1 hr 
+The process was totally a try-by-try, emm, over ten times.
+Let me try to explain why i finally passed this test.
+The procedure like this:
+```c
+lock - 0
+cond wait - 1
+lock - 1
+broadcast - 0
+broadcast unlock - 0
+cond unlock - 0
+
+lock - 0
+cond wait - 1
+lock - 1
+cond wait - 2
+lock - 2
+broadcast - 0
+broadcast unlock - 0
+cond unlock - 0
+cond unlock - 0
+lock - 0
+cond wait - 1
+lock - 1
+cond wait - 2
+lock - 2
+broadcast - 0
+broadcast unlock - 0
+cond unlock - 0
+cond unlock - 0
+```
+The number refers to current value of $bstate.nthread
+
+Every thread waits until all threads come to $barrier.
+The last thread does:
+1. reset $bstate.nthread
+2. increment $bstate.round
+3. call $pthread_cond_broadcast()
+4. unlock itself
+5. return
+
+Then the waiting threads does it one by one:
+1. unlock itself
+2. return
+By the time the $bstate.round has incremented,
+so we live through this loop.
+
+Next loop, while some threads may be still waiting for broadcast,
+the thread will be blocked at $pthread_mutex_lock().
+
+root@25df801f64c7:/s081# make grade
+make clean
+make[1]: Entering directory '/s081'
+rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+*/*.o */*.d */*.asm */*.sym \
+user/initcode user/initcode.out kernel/kernel fs.img \
+mkfs/mkfs .gdbinit \
+        user/usys.S \
+user/_cat user/_echo user/_forktest user/_grep user/_init user/_kill user/_ln user/_ls user/_mkdir user/_rm user/_sh user/_stressfs user/_usertests user/_grind user/_wc user/_zombie  user/_uthread
+make[1]: Leaving directory '/s081'
+./grade-lab-thread -v
+make[1]: Entering directory '/s081'
+riscv64-unknown-elf-gcc    -c -o kernel/entry.o kernel/entry.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/start.o kernel/start.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/console.o kernel/console.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/printf.o kernel/printf.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/uart.o kernel/uart.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/kalloc.o kernel/kalloc.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/spinlock.o kernel/spinlock.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/string.o kernel/string.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/main.o kernel/main.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/vm.o kernel/vm.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/proc.o kernel/proc.c
+riscv64-unknown-elf-gcc    -c -o kernel/swtch.o kernel/swtch.S
+riscv64-unknown-elf-gcc    -c -o kernel/trampoline.o kernel/trampoline.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/trap.o kernel/trap.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/syscall.o kernel/syscall.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/sysproc.o kernel/sysproc.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/bio.o kernel/bio.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/fs.o kernel/fs.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/log.o kernel/log.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/sleeplock.o kernel/sleeplock.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/file.o kernel/file.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/pipe.o kernel/pipe.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/exec.o kernel/exec.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/sysfile.o kernel/sysfile.c
+riscv64-unknown-elf-gcc    -c -o kernel/kernelvec.o kernel/kernelvec.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/plic.o kernel/plic.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/virtio_disk.o kernel/virtio_disk.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_THREAD -DLAB_THREAD -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie -march=rv64g -nostdinc -I. -Ikernel -c user/initcode.S -o user/initcode.o
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e start -Ttext 0 -o user/initcode.out user/initcode.o
+riscv64-unknown-elf-objcopy -S -O binary user/initcode.out user/initcode
+riscv64-unknown-elf-objdump -S user/initcode.o > user/initcode.asm
+riscv64-unknown-elf-ld -z max-page-size=4096 -T kernel/kernel.ld -o kernel/kernel kernel/entry.o kernel/start.o kernel/console.o kernel/printf.o kernel/uart.o kernel/kalloc.o kernel/spinlock.o kernel/string.o kernel/main.o kernel/vm.o kernel/proc.o kernel/swtch.o kernel/trampoline.o kernel/trap.o kernel/syscall.o kernel/sysproc.o kernel/bio.o kernel/fs.o kernel/log.o kernel/sleeplock.o kernel/file.o kernel/pipe.o kernel/exec.o kernel/sysfile.o kernel/kernelvec.o kernel/plic.o kernel/virtio_disk.o 
+riscv64-unknown-elf-ld: warning: cannot find entry symbol _entry; defaulting to 0000000080000000
+riscv64-unknown-elf-objdump -S kernel/kernel > kernel/kernel.asm
+riscv64-unknown-elf-objdump -t kernel/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel/kernel.sym
+make[1]: Leaving directory '/s081'
+== Test uthread == 
+$ make qemu-gdb
+uthread: OK (8.5s) 
+== Test answers-thread.txt == answers-thread.txt: OK 
+== Test ph_safe == make[1]: Entering directory '/s081'
+make[1]: 'ph' is up to date.
+make[1]: Leaving directory '/s081'
+ph_safe: OK (8.9s) 
+== Test ph_fast == make[1]: Entering directory '/s081'
+make[1]: 'ph' is up to date.
+make[1]: Leaving directory '/s081'
+ph_fast: OK (19.4s) 
+== Test barrier == make[1]: Entering directory '/s081'
+make[1]: 'barrier' is up to date.
+make[1]: Leaving directory '/s081'
+barrier: OK (3.4s) 
+== Test time == 
+time: OK 
+Score: 60/60
