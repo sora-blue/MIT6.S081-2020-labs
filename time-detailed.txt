@@ -1,0 +1,4 @@
+uthread: 2 hrs 10 min
+God it was a disaster. i debugged here and there, unhappy to find all_thread[0] was totally a mess
+after being scheduled. Finally it turned out that i didn't expect stack is growing to lower addr
+as well here! So i have to make $sp equals to (t->stack + STACK_SIZE)! 
