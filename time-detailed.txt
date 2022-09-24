@@ -1,1 +1,5 @@
 kalloctest: 0.5 hrs
+bcachetest: 
+2 hrs + 2hrs 
+(pass bcachetest with tot == 0 but break LRU, fail usertests in grade program(qemu-gdb) but pass in qemu)
+
