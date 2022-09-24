@@ -94,6 +94,23 @@ binit(void)
   }
 }
 
+void
+_acqall(int idx)
+{
+  for(int i = 0 ; i < BUF_TABLE_SIZE ; i++){
+    if(i == idx) continue;
+    acquire(&bcache.btlock[i]);
+  }
+}
+
+void
+_relall()
+{
+  for(int i = 0 ; i < BUF_TABLE_SIZE ; i++){
+    release(&bcache.btlock[i]);
+  }
+}
+
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
 // In either case, return locked buffer.
@@ -112,21 +129,33 @@ bget(uint dev, uint blockno)
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
       release(&bcache.btlock[idx]);
-      
       acquiresleep(&b->lock);
       return b;
     }
   }
+  // Not cached.
+  // check itself first
+  for(b = bcache.buftable[idx] ; b ; b = b->next){
+      if(b->refcnt == 0) {
+        b->dev = dev;
+        b->blockno = blockno;
+        b->valid = 0;
+        b->refcnt = 1;
+        release(&bcache.btlock[idx]);
+        acquiresleep(&b->lock);
+        return b;
+      }
+  } 
+  release(&bcache.btlock[idx]);
 
   // Not cached.
   // Recycle the least recently used (LRU) unused buffer.
   // * not lru for now
   // * planning for a heap per bucket
   // uint64 lru_min = -1;
+  _acqall(-1);
   for(i = 0 ; i < BUF_TABLE_SIZE ; i++){
-    if(i != idx){
-      acquire(&bcache.btlock[i]);
-    }
+    if(i == idx) continue;
     for(b = bcache.buftable[i] ; b ; b = b->next){
       if(b->refcnt == 0) {
         b->dev = dev;
@@ -135,17 +164,12 @@ bget(uint dev, uint blockno)
         b->refcnt = 1;
         if(i != idx){
           btremove(b, i);
-          release(&bcache.btlock[i]);
           btinsert(b, idx);
         }
-        release(&bcache.btlock[idx]);
-        
+        _relall();
         acquiresleep(&b->lock);
         return b;
       } 
-    }
-    if(i != idx){
-      release(&bcache.btlock[i]);
     }
   }
 

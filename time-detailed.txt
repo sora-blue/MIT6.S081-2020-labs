@@ -1,5 +1,66 @@
 kalloctest: 0.5 hrs
-bcachetest: 
-2 hrs + 2hrs 
-(pass bcachetest with tot == 0 but break LRU, fail usertests in grade program(qemu-gdb) but pass in qemu)
 
+bcachetest: 
+--- 2 hrs thinking + 2hrs coding
+(pass bcachetest with tot == 0 but break LRU, fail usertests in grade program(qemu-gdb) but pass in qemu)
+concurrency issue occurs with multi cores
+
+deadlock:
+cpuid: 1, i: 3, idx: 5
+cpuid: 2, i: 0, idx: 3
+cpuid: 2, i: 1, idx: 3
+cpuid: 2, i: 2, idx: 3
+cpuid: 2, i: 4, idx: 3
+cpuid: 2, i: 5, idx: 3
+
+eviction cannot hold two locks of different buckets at the same time
+so bcache.lock is used to serialize eviction
+
+-- 1.5 hrs
+solve concurrency issue by serializing eviction
+
+-- 17 min
+bcache.lock does not save invariance by ignoring buckets' own locks
+it randomly causes usertests like fourfiles test to fail
+so i add two functions to acquire & release all locks to serialize it
+tot = 0 became impossible anyway
+buckets = 16, tot = 500, just reaches the line
+buckets = 15, tot = 401
+
+yet another failure: tot = 1751
+
+--43 min
+tot randomly overflows the limit 500
+check itself before running
+release the lock of itself before acqall to **wakeup** previous process
+    * sounds like a hack
+that was sched to sleep when acquiring locked
+
+back to tot = 0
+
+6.s081 stu joke: how to judge a deadlock while "usertests"ing ? Just listen to how loud your CPU fan is.
+
+make[1]: Leaving directory '/s081'
+== Test running kalloctest == 
+$ make qemu-gdb
+(135.2s) 
+== Test   kalloctest: test1 == 
+  kalloctest: test1: OK 
+== Test   kalloctest: test2 == 
+  kalloctest: test2: OK 
+== Test kalloctest: sbrkmuch == 
+$ make qemu-gdb
+kalloctest: sbrkmuch: OK (10.9s) 
+== Test running bcachetest == 
+$ make qemu-gdb
+(11.3s) 
+== Test   bcachetest: test0 == 
+  bcachetest: test0: OK 
+== Test   bcachetest: test1 == 
+  bcachetest: test1: OK 
+== Test usertests == 
+$ make qemu-gdb
+usertests: OK (163.7s) 
+== Test time == 
+time: OK 
+Score: 70/70
