@@ -135,17 +135,26 @@ bget(uint dev, uint blockno)
   }
   // Not cached.
   // check itself first
+  uint lru_a = -1;
+  struct buf *lru_b = 0;
+  int lru_idx = -1;
   for(b = bcache.buftable[idx] ; b ; b = b->next){
-      if(b->refcnt == 0) {
-        b->dev = dev;
-        b->blockno = blockno;
-        b->valid = 0;
-        b->refcnt = 1;
-        release(&bcache.btlock[idx]);
-        acquiresleep(&b->lock);
-        return b;
+      if(b->refcnt == 0 && b->timestamp < lru_a) {
+        lru_a = b->timestamp;
+        lru_b = b;
+        lru_idx = idx;
+        continue;
       }
   } 
+  if(lru_b != 0){
+    lru_b->dev = dev;
+    lru_b->blockno = blockno;
+    lru_b->valid = 0;
+    lru_b->refcnt = 1;
+    release(&bcache.btlock[lru_idx]); // lru_idx == idx
+    acquiresleep(&lru_b->lock);
+    return lru_b;
+  }
   release(&bcache.btlock[idx]);
 
   // Not cached.
@@ -157,20 +166,27 @@ bget(uint dev, uint blockno)
   for(i = 0 ; i < BUF_TABLE_SIZE ; i++){
     if(i == idx) continue;
     for(b = bcache.buftable[i] ; b ; b = b->next){
-      if(b->refcnt == 0) {
-        b->dev = dev;
-        b->blockno = blockno;
-        b->valid = 0;
-        b->refcnt = 1;
-        if(i != idx){
-          btremove(b, i);
-          btinsert(b, idx);
-        }
-        _relall();
-        acquiresleep(&b->lock);
-        return b;
+      if(b->refcnt == 0 && b->timestamp < lru_a) {
+        lru_a = b->timestamp;
+        lru_b = b;
+        lru_idx = i;
+        continue;
       } 
     }
+  }
+
+  if(lru_b != 0){
+    lru_b->dev = dev;
+    lru_b->blockno = blockno;
+    lru_b->valid = 0;
+    lru_b->refcnt = 1;
+    if(idx != lru_idx){
+      btremove(lru_b, lru_idx);
+      btinsert(lru_b, idx);
+    }
+    _relall();
+    acquiresleep(&lru_b->lock);
+    return lru_b;
   }
 
   panic("bget: no buffers");
