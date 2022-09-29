@@ -1,1 +1,29 @@
 big file: 2 hours
+symbolic links: 1.5 hours
+
+timeout for bigfile yet:(
+
+As i was running it on qemugdb -> docker container -> real hardware,
+it was no doubt to be slow.
+
+Below was the result without time limits:
+```bash
+make[1]: Leaving directory '/s081'
+== Test running bigfile == 
+$ make qemu-gdb
+running bigfile: OK (533.7s) 
+    (Old xv6.out.bigfile failure log removed)
+== Test running symlinktest == 
+$ make qemu-gdb
+(1.9s) 
+== Test   symlinktest: symlinks == 
+  symlinktest: symlinks: OK 
+== Test   symlinktest: concurrent symlinks == 
+  symlinktest: concurrent symlinks: OK 
+== Test usertests == 
+$ make qemu-gdb
+usertests: OK (590.0s) 
+== Test time == 
+time: OK 
+Score: 100/100
+```
