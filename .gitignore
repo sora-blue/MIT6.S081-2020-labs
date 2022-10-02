@@ -21,3 +21,4 @@ xv6.out*
 submissions/
 ph
 barrier
+mkfs/mkfs
