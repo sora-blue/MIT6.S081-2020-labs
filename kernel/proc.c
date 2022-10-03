@@ -3,6 +3,9 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
 #include "proc.h"
 #include "defs.h"
 
@@ -282,6 +285,15 @@ fork(void)
   }
   np->sz = p->sz;
 
+  // Copy vma regions.
+  for(int i = 0 ; i < VMA_POOL_SIZE ; i++){
+    struct vma *pv = p->vpool + i;
+    if(pv->status == VMA_FREE) continue;
+    uvmunmap(p->pagetable, pv->addr, PGROUNDUP(pv->length) / PGSIZE, 1);
+    np->vpool[i] = *pv;
+    np->vpool[i].f = filedup(pv->f);
+  }
+
   np->parent = p;
 
   // copy saved user registers.
@@ -343,6 +355,15 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+  
+  // Unmap vma regions.
+  for(int i = 0 ; i < VMA_POOL_SIZE ; i++){
+    struct vma *pv = p->vpool + i;
+    if(pv->status == VMA_FREE) continue;
+    uvmunmap(p->pagetable, pv->addr, PGROUNDUP(pv->length) / PGSIZE, 1);
+    fileclose(pv->f);
+    pv->status = VMA_FREE;
+  }
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

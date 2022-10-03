@@ -1,0 +1,33 @@
+2hrs + 3.5hrs
+
+fairly smooth than pgtbl lab this time
+only two nights
+
+riscv64-unknown-elf-objdump -S kernel/kernel > kernel/kernel.asm
+riscv64-unknown-elf-objdump -t kernel/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel/kernel.sym
+make[1]: Leaving directory '/s081'
+== Test running mmaptest == 
+$ make qemu-gdb
+(8.5s) 
+== Test   mmaptest: mmap f == 
+  mmaptest: mmap f: OK 
+== Test   mmaptest: mmap private == 
+  mmaptest: mmap private: OK 
+== Test   mmaptest: mmap read-only == 
+  mmaptest: mmap read-only: OK 
+== Test   mmaptest: mmap read/write == 
+  mmaptest: mmap read/write: OK 
+== Test   mmaptest: mmap dirty == 
+  mmaptest: mmap dirty: OK 
+== Test   mmaptest: not-mapped unmap == 
+  mmaptest: not-mapped unmap: OK 
+== Test   mmaptest: two files == 
+  mmaptest: two files: OK 
+== Test   mmaptest: fork_test == 
+  mmaptest: fork_test: OK 
+== Test usertests == 
+$ make qemu-gdb
+usertests: OK (128.6s) 
+== Test time == 
+time: OK 
+Score: 140/140

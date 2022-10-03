@@ -5,6 +5,10 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "proc.h"
+#include "file.h"
 
 /*
  * the kernel's page table.
@@ -157,7 +161,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 }
 
 // Remove npages of mappings starting from va. va must be
-// page-aligned. The mappings must exist.
+// page-aligned.
 // Optionally free the physical memory.
 void
 uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
@@ -172,7 +176,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -306,7 +310,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -428,4 +432,59 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int
+lazyalloc(uint64 va, struct proc *p)
+{
+  int i, sz;
+  void *mem;
+  pte_t *pte;
+  struct vma *pv;
+  struct inode *fi;
+  
+  if(va > p->sz)
+    return -1;
+  // find corresponding vma for it
+  for(i = 0 ; i < VMA_POOL_SIZE ; i++){
+    pv = p->vpool + i;
+    if(pv->status == VMA_FREE) continue;
+    if(pv->addr > va) continue;
+    if(pv->addr + pv->length <= va) continue; // mind here is <=
+    break;
+  }
+  if(i == VMA_POOL_SIZE)
+    return -1;
+  // va must not be mapped before
+  pte = walk(p->pagetable, va, 0);
+  if(pte != 0 && (*pte & PTE_V))
+    return -1;
+  va = PGROUNDDOWN(va);
+  // allocate memory
+  mem = kalloc();
+  if(mem == 0)
+    return -1;
+  memset(mem, 0, PGSIZE);
+  // fetch lock of inode
+  fi = pv->f->ip;
+  ilock(fi);
+  // --------------------------------------
+  // - map pages with info in VMA
+  // --------------------------------------
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, pv->pte_flags | PTE_V | PTE_U) < 0)
+    goto lazy_bad;
+  // --------------------------------------
+  // - read file content 
+  // --------------------------------------
+  sz = pv->length + pv->addr - va;
+  if(sz > PGSIZE) sz = PGSIZE;
+  if(readi(fi, 1, va, va - pv->addr, sz) <= 0){ // != sz ?
+    goto lazy_bad;
+  }
+  iunlock(fi);
+  return 0;
+lazy_bad:
+  iunlock(fi);
+  kfree(mem);
+  return -1;
 }

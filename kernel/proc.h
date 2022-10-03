@@ -81,6 +81,18 @@ struct trapframe {
 };
 
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+#define VMA_POOL_SIZE 16
+#define VMA_FREE 0x0
+#define VMA_USED 0x1
+
+struct vma{
+  uint64 addr;
+  int length;
+  int pte_flags; // RWX-
+  // prot is included in pte_flags
+  int status; // FREE or USED
+  struct file *f;
+};
 
 // Per-process state
 struct proc {
@@ -103,4 +115,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  struct vma vpool[VMA_POOL_SIZE]; // vma for each process
 };
