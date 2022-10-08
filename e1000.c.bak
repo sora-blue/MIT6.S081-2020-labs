@@ -155,32 +155,94 @@ e1000_recv(void)
   rx_ring_next_index = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
   rx_ring_this_desc = rx_ring + rx_ring_next_index;
   this_mbuf = rx_mbufs[rx_ring_next_index];
+  printf("%p\n", this_mbuf);
 
-  
-  while((rx_ring_this_desc->status & E1000_RXD_STAT_DD) != 0){
-    this_mbuf->len = rx_ring_this_desc->length;
-    // Send packet to net stack.
+  // // Always check if a new packet is available. If not, stop.
+  // int i;
+  // for(i = 0 ; ((rx_ring_this_desc->status & E1000_RXD_STAT_DD) != 0) ; i++){
+  //   this_mbuf->len = rx_ring_this_desc->length;
+  //   release(&e1000_lock);
+  //   net_rx(this_mbuf);
+  //   acquire(&e1000_lock);
+  //   // First ask the E1000 for the RX ring index at which
+  //   // the next waiting received packet(if any) is located.
+  //   rx_ring_next_index = (rx_ring_next_index + 1) % RX_RING_SIZE;
+  //   rx_ring_this_desc = rx_ring + rx_ring_next_index;
+  //   this_mbuf = rx_mbufs[rx_ring_next_index];
+  // }
+
+  // regs[E1000_RDT] = (regs[E1000_RDT] + i + 1) % RX_RING_SIZE;
+  // if(regs[E1000_RDT] == RX_RING_SIZE - 1){
+  //   regs[E1000_RDT] = -1;
+  // }
+
+  // while(i--){
+  //   rx_ring_next_index = (rx_ring_next_index - 1 + RX_RING_SIZE) % RX_RING_SIZE;
+  //   rx_ring_this_desc = rx_ring + rx_ring_next_index;
+  //   rx_mbufs[rx_ring_next_index] = mbufalloc(0);
+  //   rx_ring_this_desc->addr = (uint64)rx_mbufs[rx_ring_next_index]->head;
+  //   rx_ring_this_desc->status = 0;
+  // }
+  if((rx_ring_this_desc->status & E1000_RXD_STAT_DD) == 0){
     release(&e1000_lock);
-    net_rx(this_mbuf);
-    acquire(&e1000_lock);
-    // Allocate a new mbuf and program its data pointer into the desc.
-    rx_mbufs[rx_ring_next_index] = mbufalloc(0);
-    rx_ring_this_desc->addr = (uint64)rx_mbufs[rx_ring_next_index]->head;
-    // Clear the desc's status bits to zero
-    rx_ring_this_desc->status = 0;
-    // First ask the E1000 for the RX ring index at which
-    // the next waiting received packet(if any) is located.
-    rx_ring_next_index = (rx_ring_next_index + 1) % RX_RING_SIZE;
-    rx_ring_this_desc = rx_ring + rx_ring_next_index;
-    this_mbuf = rx_mbufs[rx_ring_next_index];
+    return;
   }
-  // Update E1000_RDT.
-  {
-    regs[E1000_RDT] = (rx_ring_next_index - 1 + RX_RING_SIZE) % RX_RING_SIZE;
-    if(regs[E1000_RDT] == RX_RING_SIZE - 1){
-      regs[E1000_RDT] = -1;
-    }
+  int start_position = rx_ring_next_index;
+  int end_position = start_position;
+  while((rx_ring[end_position].status & E1000_RXD_STAT_DD) != 0){
+    rx_ring[end_position].status = 0;
+    rx_mbufs[end_position]->len = rx_ring[end_position].length;
+    printf("len: %d\n", rx_ring[end_position].length);
+    end_position = (end_position + 1) % RX_RING_SIZE;
   }
+  release(&e1000_lock);
+  int i;
+  for(i = start_position ; i != end_position ; i = (i + 1) % RX_RING_SIZE){
+    struct mbuf * tmp;
+    tmp = rx_mbufs[i];
+    net_rx(tmp);
+    rx_mbufs[i] = mbufalloc(0);
+    rx_ring[i].addr = (uint64)rx_mbufs[i]->head;
+  }
+  acquire(&e1000_lock);
+  regs[E1000_RDT] = (end_position - 1 + RX_RING_SIZE) % RX_RING_SIZE;
+  if(regs[E1000_RDT] == RX_RING_SIZE - 1){
+    regs[E1000_RDT] = -1;
+  }
+  // int tmp1 = rx_ring_next_index;
+  // uint64 tmp2 = (uint64)rx_ring_this_desc;
+  // while((rx_ring_this_desc->status & E1000_RXD_STAT_DD) != 0){
+  //   printf("%d\n", rx_ring_this_desc->length);
+  //   rx_ring_next_index = (rx_ring_next_index + 1) % RX_RING_SIZE;
+  //   rx_ring_this_desc = rx_ring + rx_ring_next_index;
+  // }
+  // rx_ring_next_index = 
+  // printf("in circle\n");
+  // while((rx_ring_this_desc->status & E1000_RXD_STAT_DD) != 0){
+  //   // printf("out circle\n");
+  //   this_mbuf->len = rx_ring_this_desc->length;
+  //   // Send packet to net stack.
+  //   release(&e1000_lock);
+  //   net_rx(this_mbuf);
+  //   acquire(&e1000_lock);
+  //   // Allocate a new mbuf and program its data pointer into the desc.
+  //   rx_mbufs[rx_ring_next_index] = mbufalloc(0);
+  //   rx_ring_this_desc->addr = (uint64)rx_mbufs[rx_ring_next_index]->head;
+  //   // Clear the desc's status bits to zero
+  //   rx_ring_this_desc->status = 0;
+  //   // First ask the E1000 for the RX ring index at which
+  //   // the next waiting received packet(if any) is located.
+  //   rx_ring_next_index = (rx_ring_next_index + 1) % RX_RING_SIZE;
+  //   rx_ring_this_desc = rx_ring + rx_ring_next_index;
+  //   this_mbuf = rx_mbufs[rx_ring_next_index];
+  // }
+  // // Update E1000_RDT.
+  // {
+  //   regs[E1000_RDT] = (rx_ring_next_index - 1 + RX_RING_SIZE) % RX_RING_SIZE;
+  //   if(regs[E1000_RDT] == RX_RING_SIZE - 1){
+  //     regs[E1000_RDT] = -1;
+  //   }
+  // }
   release(&e1000_lock);
 }
 
